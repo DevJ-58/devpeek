@@ -1,0 +1,19 @@
+{
+  "name": "DevPeek",
+  "short_name": "DevPeek",
+  "description": "Prévisualisez votre dev server local sur votre vrai téléphone",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#ffffff",
+  "theme_color": "#0070f3",
+  "lang": "fr",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230070f3'/><text y='72' x='50' text-anchor='middle' font-size='60' font-family='system-ui' fill='white'>👁</text></svg>",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

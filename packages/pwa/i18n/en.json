@@ -1,0 +1,20 @@
+{
+  "status_waiting": "Waiting for connection...",
+  "status_connected": "Connected",
+  "status_disconnected": "Disconnected",
+  "server_url": "Local server",
+  "history": "Recent",
+  "open_viewer": "Open preview",
+  "rotate": "Rotate",
+  "theme": "Theme",
+  "back": "Back",
+  "no_history": "No recent servers",
+  "hint_scan": "Scan the QR code from your DevPeek terminal",
+  "hint_same_network": "Make sure your phone and PC are on the same Wi-Fi network",
+  "resolution": "Resolution",
+  "connecting": "Connecting...",
+  "reconnecting": "Reconnecting...",
+  "offline_title": "Offline",
+  "offline_message": "Start DevPeek on your PC to connect.",
+  "clear_history": "Clear"
+}

@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="DevPeek" />
+  <meta name="theme-color" content="#0070f3" />
+  <title>DevPeek</title>
+
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="/manifest.json" />
+
+  <!-- Google Fonts : Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+
+  <!-- Material Icons -->
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- ÉCRAN DE CONNEXION                                      -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <div class="screen" id="connection-screen">
+
+    <!-- En-tête -->
+    <div class="header">
+      <div class="logo">
+        <div class="logo-icon"><i class="material-icons">visibility</i></div>
+        <span class="logo-text">DevPeek</span>
+      </div>
+      <button class="theme-btn" id="theme-btn" aria-label="Toggle theme"><i class="material-icons">brightness_2</i></button>
+    </div>
+
+    <!-- Carte de statut -->
+    <div class="status-card">
+      <div class="status-indicator">
+        <div class="status-dot waiting" id="status-dot"></div>
+        <span class="status-label" id="status-label" data-i18n="status_waiting">
+          En attente de connexion...
+        </span>
+      </div>
+
+      <!-- URL du dev server (affichée une fois connecté) -->
+      <div class="server-url" id="server-url" style="display: none;"></div>
+
+      <!-- Hints (affichés quand pas connecté) -->
+      <div class="hint">
+        <span class="hint-icon"><i class="material-icons">phone_android</i></span>
+        <span data-i18n="hint_scan">Scannez le QR code depuis votre terminal DevPeek</span>
+      </div>
+      <div class="hint" style="margin-top: 8px;">
+        <span class="hint-icon"><i class="material-icons">wifi</i></span>
+        <span data-i18n="hint_same_network">
+          Assurez-vous que votre téléphone et votre PC sont sur le même réseau Wi-Fi
+        </span>
+      </div>
+    </div>
+
+    <!-- Bouton principal -->
+    <button class="open-btn" id="open-btn" disabled>
+      <span><i class="material-icons">play_arrow</i></span>
+      <span data-i18n="open_viewer">Ouvrir l'aperçu</span>
+    </button>
+
+    <!-- Badge résolution -->
+    <div style="display:flex; justify-content:center; margin-top: 16px;">
+      <div class="resolution-badge" id="resolution-badge">
+        <i class="material-icons">aspect_ratio</i> …
+      </div>
+    </div>
+
+    <!-- Historique des URLs récentes -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-title" data-i18n="history">Récents</span>
+        <button class="clear-btn" id="clear-btn" data-i18n="clear_history">Effacer</button>
+      </div>
+      <div class="history-list" id="history-list">
+        <!-- Injecté par app.js -->
+      </div>
+    </div>
+
+    <!-- Espace bas de page pour iOS safe area -->
+    <div style="height: env(safe-area-inset-bottom, 20px); flex-shrink: 0;"></div>
+
+  </div><!-- /connection-screen -->
+
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- ÉCRAN VIEWER                                            -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <div class="screen hidden" id="viewer-screen">
+
+    <!-- Iframe plein écran -->
+    <iframe
+      id="viewer-iframe"
+      src="about:blank"
+      allow="fullscreen"
+      sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+      title="Dev server preview"
+    ></iframe>
+
+    <!-- Barre de contrôles -->
+    <div class="viewer-toolbar">
+
+      <button class="toolbar-btn" id="back-btn">
+        <span class="icon">←</span>
+        <span data-i18n="back">Retour</span>
+      </button>
+
+      <button class="toolbar-btn" id="rotate-btn">
+        <span class="icon">⟳</span>
+        <span data-i18n="rotate">Rotation</span>
+      </button>
+
+      <button class="toolbar-btn" id="theme-btn-viewer">
+        <span class="icon">🌙</span>
+        <span data-i18n="theme">Thème</span>
+      </button>
+
+    </div>
+
+  </div><!-- /viewer-screen -->
+
+
+  <!-- Socket.IO client (servi par le CLI) -->
+  <script src="/socket.io/socket.io.js"></script>
+
+  <!-- Logique PWA -->
+  <script src="/app.js"></script>
+
+</body>
+</html>

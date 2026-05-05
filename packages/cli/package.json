@@ -1,0 +1,26 @@
+{
+  "name": "devpeek",
+  "version": "0.1.0",
+  "description": "Prévisualisez votre dev server local sur votre vrai téléphone en 30 secondes",
+  "type": "commonjs",
+  "main": "src/index.js",
+  "bin": {
+    "devpeek": "./bin/devpeek.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node bin/devpeek.js"
+  },
+  "keywords": ["devtools", "mobile", "preview", "qrcode", "pwa"],
+  "license": "MIT",
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "commander": "^11.0.0",
+    "express": "^4.18.0",
+    "ip": "^1.1.8",
+    "qrcode-terminal": "^0.12.0",
+    "socket.io": "^4.7.0"
+  }
+}
