@@ -1,37 +1,33 @@
 /**
- * app.js — Logique de la PWA DevPeek
- *
- * Gère : i18n, thème, Socket.IO, historique, viewer iframe, orientation
+ * app.js — DevPeek PWA v0.2 Logic
+ * 
+ * Gère : navigation 3-écrans, i18n, thème, historique localStorage,
+ * scanner QR (BarcodeDetector ou jsQR), viewer iframe, orientation
  */
 
-// ─── i18n ──────────────────────────────────────────────────────────────────
+// ─── i18n ─────────────────────────────────────────────────────────────────
 
 let translations = {};
 
 async function loadTranslations() {
-  // Détecter la langue du navigateur (fr ou en par défaut)
   const lang = navigator.language?.startsWith('fr') ? 'fr' : 'en';
   try {
     const res = await fetch(`/i18n/${lang}.json`);
     translations = await res.json();
   } catch {
-    // Fallback anglais en cas d'erreur réseau
     translations = {
-      status_waiting: 'Waiting for connection...',
-      status_connected: 'Connected',
-      status_disconnected: 'Disconnected',
-      open_viewer: 'Open preview',
-      hint_scan: 'Scan the QR code from your DevPeek terminal',
-      hint_same_network: 'Make sure your phone and PC are on the same Wi-Fi network',
-      history: 'Recent',
-      no_history: 'No recent servers',
-      clear_history: 'Clear',
-      back: 'Back',
-      rotate: 'Rotate',
-      theme: 'Theme',
-      resolution: 'Resolution',
-      connecting: 'Connecting...',
-      reconnecting: 'Reconnecting...'
+      connect_server: 'Connexion',
+      manual_input: 'Saisie manuelle',
+      scan_qr: 'Scanner QR',
+      url_placeholder: 'http://192.168.x.x:3000',
+      connect: 'Connexion',
+      history: 'Récents',
+      clear_history: 'Effacer',
+      back: 'Retour',
+      rotate: 'Rotation',
+      theme: 'Thème',
+      history_empty: 'Aucun serveur',
+      scanner_permission: 'Accès caméra requis'
     };
   }
 }
@@ -40,7 +36,14 @@ function t(key) {
   return translations[key] || key;
 }
 
-// ─── Thème ─────────────────────────────────────────────────────────────────
+// ─── Screen Navigation ────────────────────────────────────────────────────
+
+function showScreen(screenId) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+  document.getElementById(screenId)?.classList.remove('hidden');
+}
+
+// ─── Theme ────────────────────────────────────────────────────────────────
 
 function initTheme() {
   const saved = localStorage.getItem('devpeek-theme');
@@ -52,7 +55,6 @@ function initTheme() {
 function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
   localStorage.setItem('devpeek-theme', theme);
-  document.querySelector('.theme-btn').textContent = theme === 'dark' ? '☀️' : '🌙';
 }
 
 function toggleTheme() {
@@ -60,7 +62,7 @@ function toggleTheme() {
   applyTheme(current === 'dark' ? 'light' : 'dark');
 }
 
-// ─── Historique des URLs ────────────────────────────────────────────────────
+// ─── History (localStorage) ───────────────────────────────────────────────
 
 const HISTORY_KEY = 'devpeek-history';
 const HISTORY_MAX = 5;
@@ -74,7 +76,7 @@ function getHistory() {
 }
 
 function addToHistory(url) {
-  let history = getHistory().filter((u) => u !== url);
+  let history = getHistory().filter(u => u !== url);
   history.unshift(url);
   if (history.length > HISTORY_MAX) history = history.slice(0, HISTORY_MAX);
   localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
@@ -91,188 +93,255 @@ function renderHistory() {
   const history = getHistory();
 
   if (history.length === 0) {
-    container.innerHTML = `<div class="history-empty">${t('no_history')}</div>`;
+    container.innerHTML = `<div class="history-empty">${t('history_empty')}</div>`;
     return;
   }
 
-  container.innerHTML = history
-    .map(
-      (url) => `
-      <div class="history-item" data-url="${url}" role="button" tabindex="0">
-        <span class="history-icon">🔗</span>
-        <span class="history-url">${url}</span>
-      </div>`
-    )
-    .join('');
+  container.innerHTML = history.map(url => `
+    <div class="history-item" onclick="connectAndOpen('${url}')">
+      <div class="history-icon"><i class="material-icons">history</i></div>
+      <span class="history-url">${url}</span>
+    </div>
+  `).join('');
+}
 
-  container.querySelectorAll('.history-item').forEach((item) => {
-    item.addEventListener('click', () => openViewer(item.dataset.url));
+// ─── Tab Navigation (Connect Screen) ───────────────────────────────────────
+
+function initTabs() {
+  const tabBtns = document.querySelectorAll('.tab-btn');
+  const tabPanes = document.querySelectorAll('.tab-pane');
+
+  tabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tabName = btn.getAttribute('data-tab');
+      
+      // Deactivate all
+      tabBtns.forEach(b => b.classList.remove('active'));
+      tabPanes.forEach(p => p.classList.remove('active'));
+      
+      // Activate selected
+      btn.classList.add('active');
+      document.getElementById(`tab-${tabName}`)?.classList.add('active');
+      
+      // Start camera if scanner tab
+      if (tabName === 'scanner') {
+        startScanner();
+      } else {
+        stopScanner();
+      }
+    });
   });
 }
 
-// ─── État de connexion ──────────────────────────────────────────────────────
+// ─── URL Input & Validation ───────────────────────────────────────────────
 
-let currentDevServerUrl = null;
-let isConnected = false;
-
-function setStatus(state, urlOverride) {
-  const dot   = document.getElementById('status-dot');
-  const label = document.getElementById('status-label');
-  const urlEl = document.getElementById('server-url');
-  const openBtn = document.getElementById('open-btn');
-
-  dot.className = 'status-dot ' + state;
-
-  switch (state) {
-    case 'waiting':
-      label.textContent = t('status_waiting');
-      break;
-    case 'connected':
-      label.textContent = t('status_connected');
-      isConnected = true;
-      break;
-    case 'disconnected':
-      label.textContent = t('status_disconnected');
-      isConnected = false;
-      break;
-    case 'connecting':
-      label.textContent = t('connecting');
-      break;
-    case 'reconnecting':
-      label.textContent = t('reconnecting');
-      break;
-  }
-
-  const url = urlOverride || currentDevServerUrl;
-  if (url) {
-    urlEl.textContent = url;
-    urlEl.style.display = 'block';
-    currentDevServerUrl = url;
-  }
-
-  openBtn.disabled = !isConnected;
+function isValidUrl(url) {
+  return /^https?:\/\//.test(url);
 }
 
-// ─── Viewer ─────────────────────────────────────────────────────────────────
+function connectFromInput() {
+  const input = document.getElementById('url-input');
+  const url = input.value.trim();
+
+  if (!isValidUrl(url)) {
+    alert('URL doit commencer par http:// ou https://');
+    return;
+  }
+
+  connectAndOpen(url);
+}
+
+function connectAndOpen(url) {
+  addToHistory(url);
+  openViewer(url);
+}
+
+// ─── QR Scanner (BarcodeDetector or jsQR CDN) ────────────────────────────
+
+let scannerActive = false;
+let videoStream = null;
+
+async function startScanner() {
+  if (scannerActive) return;
+  scannerActive = true;
+
+  const video = document.getElementById('scanner-video');
+  try {
+    videoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    video.srcObject = videoStream;
+    video.play();
+
+    // Try BarcodeDetector first (native API)
+    if (window.BarcodeDetector) {
+      startBarcodeDetector(video);
+    } else {
+      // Fallback to jsQR via CDN
+      loadJsQR().then(() => startJsQRScanner(video));
+    }
+  } catch (err) {
+    alert(t('scanner_permission'));
+    stopScanner();
+  }
+}
+
+function stopScanner() {
+  scannerActive = false;
+  if (videoStream) {
+    videoStream.getTracks().forEach(track => track.stop());
+    videoStream = null;
+  }
+}
+
+async function startBarcodeDetector(video) {
+  const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
+  
+  const scanFrame = async () => {
+    if (!scannerActive) return;
+
+    try {
+      const barcodes = await detector.detect(video);
+      for (const barcode of barcodes) {
+        if (barcode.format === 'qr_code' && isValidUrl(barcode.rawValue)) {
+          connectAndOpen(barcode.rawValue);
+          stopScanner();
+          return;
+        }
+      }
+    } catch {}
+
+    requestAnimationFrame(scanFrame);
+  };
+
+  scanFrame();
+}
+
+async function loadJsQR() {
+  if (window.jsQR) return;
+
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js';
+    script.onload = resolve;
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+}
+
+async function startJsQRScanner(video) {
+  if (!video) return;
+
+  await new Promise(resolve => {
+    if (video.readyState >= 2) {
+      resolve();
+    } else {
+      video.addEventListener('loadedmetadata', resolve, { once: true });
+    }
+  });
+
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = video.videoWidth || 640;
+  canvas.height = video.videoHeight || 480;
+
+  const scanFrame = () => {
+    if (!scannerActive) return;
+    if (video.readyState < 2) {
+      requestAnimationFrame(scanFrame);
+      return;
+    }
+
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const code = window.jsQR(imageData.data, canvas.width, canvas.height);
+
+    if (code && isValidUrl(code.data)) {
+      connectAndOpen(code.data);
+      stopScanner();
+      return;
+    }
+
+    requestAnimationFrame(scanFrame);
+  };
+
+  scanFrame();
+}
+
+// ─── Viewer ───────────────────────────────────────────────────────────────
 
 let isLandscape = false;
 
 function openViewer(url) {
   const iframe = document.getElementById('viewer-iframe');
-  const target = url || currentDevServerUrl;
-  if (!target) return;
-
-  iframe.src = target;
-  addToHistory(target);
-
-  document.getElementById('connection-screen').classList.add('hidden');
-  document.getElementById('viewer-screen').classList.remove('hidden');
+  iframe.src = url;
+  showScreen('viewer-screen');
 }
 
-function closeViewer() {
-  document.getElementById('viewer-screen').classList.add('hidden');
-  document.getElementById('connection-screen').classList.remove('hidden');
+function backFromViewer() {
+  showScreen('home-screen');
+  stopScanner();
 }
 
 function toggleOrientation() {
   isLandscape = !isLandscape;
   const viewerScreen = document.getElementById('viewer-screen');
 
-  // Essayer l'API screen.orientation en premier (Android Chrome)
   if (screen.orientation?.lock) {
-    screen.orientation
-      .lock(isLandscape ? 'landscape' : 'portrait')
-      .catch(() => {
-        // Fallback CSS rotation (iOS Safari)
-        viewerScreen.classList.toggle('landscape', isLandscape);
-      });
+    screen.orientation.lock(isLandscape ? 'landscape' : 'portrait').catch(() => {
+      viewerScreen.classList.toggle('landscape', isLandscape);
+    });
   } else {
-    // iOS Safari fallback
     viewerScreen.classList.toggle('landscape', isLandscape);
   }
 }
 
-// ─── Badge de résolution ────────────────────────────────────────────────────
+// ─── Resolution Badge ─────────────────────────────────────────────────────
 
 function renderResolution() {
   const el = document.getElementById('resolution-badge');
+  if (!el) return;
   const dpr = window.devicePixelRatio || 1;
-  el.innerHTML = `📐 ${window.screen.width}×${window.screen.height} @${dpr}x`;
+  el.textContent = `${window.screen.width}×${window.screen.height} @${dpr}x`;
 }
 
-// ─── Socket.IO ──────────────────────────────────────────────────────────────
-
-function initSocket() {
-  // L'URL du socket est l'origine de la PWA elle-même (même hôte que le CLI)
-  // On utilise window.location.origin pour ne pas hardcoder l'IP
-  const socket = io(window.location.origin, {
-    reconnectionDelay: 1000,
-    reconnectionDelayMax: 5000,
-    timeout: 5000
-  });
-
-  setStatus('connecting');
-
-  socket.on('connect', () => {
-    // On attend la config du serveur avant de passer à "connected"
-    setStatus('connecting');
-  });
-
-  socket.on('config', (data) => {
-    if (data?.devServerUrl) {
-      currentDevServerUrl = data.devServerUrl;
-      setStatus('connected', data.devServerUrl);
-    }
-  });
-
-  socket.on('disconnect', () => {
-    setStatus('disconnected');
-  });
-
-  socket.on('connect_error', () => {
-    setStatus('reconnecting');
-  });
-
-  socket.on('reconnect', () => {
-    setStatus('connecting');
-  });
-}
-
-// ─── Initialisation ─────────────────────────────────────────────────────────
+// ─── Initialization ───────────────────────────────────────────────────────
 
 async function init() {
   await loadTranslations();
   initTheme();
 
-  // Remplir les textes i18n dans le HTML
-  document.querySelectorAll('[data-i18n]').forEach((el) => {
+  // Apply i18n
+  document.querySelectorAll('[data-i18n]').forEach(el => {
     el.textContent = t(el.dataset.i18n);
   });
 
-  // Rendre l'historique
-  renderHistory();
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    el.placeholder = t(el.dataset.i18nPlaceholder);
+  });
 
-  // Badge de résolution
+  // Render initial history
+  renderHistory();
   renderResolution();
 
-  // Statut initial
-  setStatus('waiting');
+  // Init tabs
+  initTabs();
 
-  // Enregistrer le Service Worker
+  // Register Service Worker
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(console.warn);
   }
 
-  // Événements
-  document.getElementById('theme-btn').addEventListener('click', toggleTheme);
-  document.getElementById('open-btn').addEventListener('click', () => openViewer());
-  document.getElementById('back-btn').addEventListener('click', closeViewer);
-  document.getElementById('rotate-btn').addEventListener('click', toggleOrientation);
-  document.getElementById('theme-btn-viewer').addEventListener('click', toggleTheme);
-  document.getElementById('clear-btn').addEventListener('click', clearHistory);
+  // Event listeners
+  document.getElementById('connect-btn')?.addEventListener('click', () => showScreen('connect-screen'));
+  document.getElementById('back-btn-connect')?.addEventListener('click', () => showScreen('home-screen'));
+  document.getElementById('theme-btn')?.addEventListener('click', toggleTheme);
+  document.getElementById('clear-btn')?.addEventListener('click', clearHistory);
+  document.getElementById('connect-url-btn')?.addEventListener('click', connectFromInput);
+  document.getElementById('back-btn-viewer')?.addEventListener('click', backFromViewer);
+  document.getElementById('rotate-btn')?.addEventListener('click', toggleOrientation);
+  document.getElementById('theme-btn-viewer')?.addEventListener('click', toggleTheme);
 
-  // Socket
-  initSocket();
+  // Show home screen initially
+  showScreen('home-screen');
 }
 
 document.addEventListener('DOMContentLoaded', init);
