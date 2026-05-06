@@ -6,8 +6,8 @@ const { run } = require('../src/index');
 program
   .name('devpeek')
   .description('Prévisualisez votre dev server local sur votre vrai téléphone en 30 secondes')
-  .version('0.1.0')
-  .option('-p, --port <port>', 'Port du dev server à prévisualiser', '3000')
+  .version('0.2.0')
+  .option('-p, --port <port>', 'Port du dev server à prévisualiser (défaut: 3000)', '3000')
   .action((options) => {
     const port = parseInt(options.port, 10);
 

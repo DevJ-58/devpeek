@@ -1,15 +1,15 @@
 /**
- * index.js — Logique principale de DevPeek
+ * index.js — Logique principale de DevPeek CLI
  *
- * Orchestre la détection IP, le démarrage du serveur et l'affichage du QR code.
+ * Orchestre la détection IP, l'affichage du QR code,
+ * et lance automatiquement le serveur PWA avec live reload.
  */
 
+const path = require('path');
 const chalk = require('chalk');
+const httpServer = require('http-server');
 const { getLocalIP } = require('./ip');
 const { displayQR } = require('./qr');
-const { createDevPeekServer } = require('./server');
-
-const PWA_PORT = 8765;
 
 /**
  * Point d'entrée principal du CLI DevPeek.
@@ -18,17 +18,11 @@ const PWA_PORT = 8765;
  * @param {number} options.port - Port du dev server à prévisualiser
  */
 async function run({ port }) {
-console.log('DEBUG port reçu:', port); // ← ajoutez ici
   // --- Bannière d'accueil ---
   console.log('');
-  console.log(chalk.bold.blueBright('  ██████╗ ███████╗██╗   ██╗██████╗ ███████╗███████╗██╗  ██╗'));
-  console.log(chalk.bold.blueBright('  ██╔══██╗██╔════╝██║   ██║██╔══██╗██╔════╝██╔════╝██║ ██╔╝'));
-  console.log(chalk.bold.blueBright('  ██║  ██║█████╗  ██║   ██║██████╔╝█████╗  █████╗  █████╔╝ '));
-  console.log(chalk.bold.blueBright('  ██║  ██║██╔══╝  ╚██╗ ██╔╝██╔═══╝ ██╔══╝  ██╔══╝  ██╔═██╗ '));
-  console.log(chalk.bold.blueBright('  ██████╔╝███████╗ ╚████╔╝ ██║     ███████╗███████╗██║  ██╗'));
-  console.log(chalk.bold.blueBright('  ╚═════╝ ╚══════╝  ╚═══╝  ╚═╝     ╚══════╝╚══════╝╚═╝  ╚═╝'));
-  console.log('');
-  console.log(chalk.dim('  Prévisualisez votre dev server sur votre vrai téléphone'));
+  console.log(chalk.bold.greenBright('  ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓'));
+  console.log(chalk.bold.greenBright('  ┃         DevPeek v0.2.0      ┃'));
+  console.log(chalk.bold.greenBright('  ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛'));
   console.log('');
 
   // --- Détection de l'IP locale ---
@@ -40,54 +34,49 @@ console.log('DEBUG port reçu:', port); // ← ajoutez ici
     process.exit(1);
   }
 
-  const devServerUrl = chalk.cyan(`http://${localIP}:${port}`);
-  const pwaUrl       = chalk.cyan(`http://${localIP}:${PWA_PORT}`);
+  const pwaUrl = `http://${localIP}:8765`;
+  const devServerUrl = `http://${localIP}:${port}`;
 
-  console.log(chalk.green('✔') + '  IP locale détectée   : ' + devServerUrl);
-  console.log(chalk.green('✔') + '  PWA servie sur       : ' + pwaUrl);
+  console.log(chalk.green('✓') + '  IP détectée        : ' + chalk.cyan(localIP));
+  console.log(chalk.green('✓') + '  PWA DevPeek ready  : ' + chalk.bold.cyan(pwaUrl));
+  console.log(chalk.green('✓') + '  Serveur projet     : ' + chalk.bold.cyan(devServerUrl));
   console.log('');
 
-  // --- Démarrage du serveur ---
-  let connectedClients = 0;
+  const pwaServer = httpServer.createServer({
+    root: path.resolve(__dirname, '../../pwa'),
+    cors: true,
+    cache: -1
+  });
 
-  createDevPeekServer({
-    pwaPort: PWA_PORT,
-    localIP,
-    devPort: port,
-    onConnect: (id) => {
-      connectedClients++;
-      console.log('');
-      console.log(chalk.green('▶') + chalk.bold('  Téléphone connecté !') + chalk.dim(` (client ${id.slice(0, 6)})`));
-      console.log(chalk.dim('  Le dev server est maintenant visible sur votre téléphone.'));
-      console.log('');
-    },
-    onDisconnect: (id) => {
-      connectedClients = Math.max(0, connectedClients - 1);
-      if (connectedClients === 0) {
-        console.log(chalk.yellow('◌') + chalk.dim('  Téléphone déconnecté. En attente...'));
-      }
-    }
+  pwaServer.listen(8765, '0.0.0.0', () => {
+    // serveur démarré
   });
 
   // --- Affichage du QR code ---
-  const rawPwaUrl = `http://${localIP}:${PWA_PORT}`;
+  console.log(chalk.bold('  Scannez ce QR code depuis DevPeek :'));
+  console.log('');
+  try {
+    await displayQR(pwaUrl);
+  } catch (err) {
+    console.error(chalk.yellow('⚠') + '  Erreur QR code:', err.message);
+  }
+  console.log('');
 
-  console.log(chalk.bold('  Scannez ce QR code avec votre téléphone :'));
+  // --- Instructions ---
+  console.log(chalk.dim('  ────────────────────────────────────────'));
+  console.log(chalk.green('▶') + '  Ouvrez DevPeek sur votre téléphone');
+  console.log(chalk.green('▶') + '  Scannez le QR ou ouvrez : ' + chalk.cyan(pwaUrl));
+  console.log(chalk.dim('  ────────────────────────────────────────'));
   console.log('');
-  await displayQR(rawPwaUrl);
-  console.log('');
-  console.log(chalk.dim('  Ou ouvrez manuellement : ') + chalk.underline(rawPwaUrl));
-  console.log('');
-  console.log(chalk.dim('  ─────────────────────────────────────────────'));
-  console.log(chalk.yellow('◌') + '  En attente de connexion mobile...');
   console.log(chalk.dim('  Appuyez sur Ctrl+C pour arrêter'));
   console.log('');
 
-  // Garder le processus actif
   process.on('SIGINT', () => {
     console.log('');
-    console.log(chalk.dim('  DevPeek arrêté. À bientôt !'));
-    process.exit(0);
+    pwaServer.close(() => {
+      console.log(chalk.dim('  DevPeek arrêté. À bientôt !'));
+      process.exit(0);
+    });
   });
 }
 
