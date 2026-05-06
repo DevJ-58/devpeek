@@ -1,0 +1,7 @@
+{
+  "name": "devpeek-pwa",
+  "version": "0.2.0",
+  "scripts": {
+    "build": "echo 'Static site, no build needed'"
+  }
+}
