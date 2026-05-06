@@ -43,7 +43,7 @@ async function run({ port }) {
   console.log('');
 
   const pwaServer = httpServer.createServer({
-    root: path.resolve(__dirname, '../../pwa'),
+    root: path.resolve(__dirname, '../../../'),
     cors: true,
     cache: -1
   });
